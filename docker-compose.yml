@@ -1,0 +1,58 @@
+version: "3.9"
+
+services:
+  redis:
+    image: "redis:alpine"
+    
+  db:
+    container_name: postgres
+    
+    image: postgres
+    restart: always
+    
+    environment:
+      - POSTGRES_DB=atlas
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    ports:
+      - "5432:5432"
+
+  web:
+    restart: always
+    build: .
+    command: >
+      sh -c "python3 manage.py migrate &&
+             python3 manage.py runserver 0.0.0.0:8000"
+
+    volumes:
+      - .:/code
+      - media:/media
+    ports:
+      - "8002:8000"
+    env_file:
+      - .env
+    depends_on:
+      - redis
+      - db
+
+  celery:
+    build: .
+    command: celery -A cron worker -l info
+    # command: celery -A cron worker -l WARNING 
+    volumes:
+      - .:/code
+    depends_on:
+      - db
+      - redis
+  celery-beat:
+    build: .
+    command: celery -A cron beat -l info
+    # command: celery -A cron beat -l WARNING
+    volumes:
+      - .:/code
+    depends_on:
+      - db
+      - redis
+
+volumes:
+  media:
